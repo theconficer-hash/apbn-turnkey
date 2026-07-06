@@ -1,0 +1,3 @@
+# Dependensi Python untuk Vercel Serverless Function (backend FastAPI).
+fastapi
+pydantic
