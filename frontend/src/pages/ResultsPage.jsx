@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid,
 } from 'recharts'
+import { Download, ImageDown } from 'lucide-react'
 import useSimStore from '../store/useSimStore'
 import { formatRingkas, fmtPct } from '../utils/format'
+import { downloadCSV, downloadChartPNG } from '../utils/download'
 
 const idFmt = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 })
 
@@ -44,6 +46,8 @@ export default function ResultsPage() {
   const setActivePage = useSimStore((s) => s.setActivePage)
 
   const [tab, setTab] = useState('Grafik Beban')
+  const chartTahapRef = useRef(null)
+  const chartTotalRef = useRef(null)
 
   if (!results) {
     return (
@@ -85,6 +89,43 @@ export default function ResultsPage() {
 
   const triliun = (v) => (v / 1e12).toLocaleString('id-ID', { maximumFractionDigits: 2 })
 
+  // ---- Ekspor CSV ----
+  const bulat = (v) => Math.round(v ?? 0)
+
+  const exportTabelTahun = () =>
+    downloadCSV(
+      'apbn_turnkey_beban_per_tahun.csv',
+      ['Tahun', 'Total Anuitas (Rp)', 'Total OPEX (Rp)', 'Total Beban (Rp)'],
+      years.map((y) => [y, bulat(r.total_anuitas[y]), bulat(r.total_opex[y]), bulat(r.total_beban[y])])
+    )
+
+  const exportRingkasanTahap = () =>
+    downloadCSV(
+      'apbn_turnkey_ringkasan_per_tahap.csv',
+      ['Tahap', 'CAPEX (Rp)', 'Anuitas/thn (Rp)', 'OPEX/thn (Rp)', 'Beban/thn (Rp)',
+       'Total Cicilan (Rp)', 'Konstruksi Mulai', 'Konstruksi Selesai', 'Cicilan Mulai', 'Cicilan Selesai'],
+      r.per_tahap.map((t) => [
+        t.nama, bulat(t.capex), bulat(t.anuitas_tahunan), bulat(t.opex_tahunan),
+        bulat(t.total_beban_tahunan), bulat(t.total_cicilan),
+        t.mulai_konstruksi, t.selesai_konstruksi, t.cicilan_mulai, t.cicilan_selesai,
+      ])
+    )
+
+  const exportBebanPerTahap = () =>
+    downloadCSV(
+      'apbn_turnkey_beban_per_tahap_per_tahun.csv',
+      ['Tahun', ...r.per_tahap.map((t) => `${t.nama} (Rp)`), 'Total (Rp)'],
+      years.map((y) => [
+        y,
+        ...r.per_tahap.map((t) => bulat((t.anuitas_per_tahun[y] ?? 0) + (t.opex_per_tahun[y] ?? 0))),
+        bulat(r.total_beban[y]),
+      ])
+    )
+
+  const btnUnduhCls =
+    'flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 ' +
+    'text-xs font-semibold text-slate-600 transition hover:border-laut-700 hover:text-laut-700'
+
   return (
     <div>
       {/* Kartu metrics */}
@@ -117,6 +158,20 @@ export default function ResultsPage() {
       <div className="mb-6 flex flex-wrap gap-2">
         <button
           type="button"
+          onClick={exportTabelTahun}
+          className="flex items-center gap-2 rounded-lg bg-mangrove-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-mangrove-700"
+        >
+          <Download size={16} /> Unduh Tabel per Tahun (CSV)
+        </button>
+        <button
+          type="button"
+          onClick={exportRingkasanTahap}
+          className="flex items-center gap-2 rounded-lg bg-laut-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-laut-900"
+        >
+          <Download size={16} /> Unduh Ringkasan Tahap (CSV)
+        </button>
+        <button
+          type="button"
           onClick={() => setActivePage('input')}
           className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
         >
@@ -147,10 +202,21 @@ export default function ResultsPage() {
         {tab === 'Grafik Beban' && (
           <div className="space-y-8">
             <div>
-              <h3 className="mb-2 text-sm font-bold text-laut-900">
-                Beban per Tahap (Rp Triliun / tahun)
-              </h3>
-              <div className="h-96 w-full">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-laut-900">
+                  Beban per Tahap (Rp Triliun / tahun)
+                </h3>
+                <div className="flex gap-2">
+                  <button type="button" className={btnUnduhCls}
+                    onClick={() => downloadChartPNG(chartTahapRef.current, 'grafik_beban_per_tahap.png')}>
+                    <ImageDown size={14} /> PNG
+                  </button>
+                  <button type="button" className={btnUnduhCls} onClick={exportBebanPerTahap}>
+                    <Download size={14} /> CSV
+                  </button>
+                </div>
+              </div>
+              <div className="h-96 w-full" ref={chartTahapRef}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={stackedData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -172,10 +238,21 @@ export default function ResultsPage() {
             </div>
 
             <div>
-              <h3 className="mb-2 text-sm font-bold text-laut-900">
-                Anuitas vs OPEX Total (Rp Triliun / tahun)
-              </h3>
-              <div className="h-80 w-full">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-laut-900">
+                  Anuitas vs OPEX Total (Rp Triliun / tahun)
+                </h3>
+                <div className="flex gap-2">
+                  <button type="button" className={btnUnduhCls}
+                    onClick={() => downloadChartPNG(chartTotalRef.current, 'grafik_anuitas_vs_opex.png')}>
+                    <ImageDown size={14} /> PNG
+                  </button>
+                  <button type="button" className={btnUnduhCls} onClick={exportTabelTahun}>
+                    <Download size={14} /> CSV
+                  </button>
+                </div>
+              </div>
+              <div className="h-80 w-full" ref={chartTotalRef}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={totalData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -194,7 +271,13 @@ export default function ResultsPage() {
         )}
 
         {tab === 'Tabel per Tahun' && (
-          <div className="overflow-x-auto">
+          <div>
+            <div className="mb-3 flex justify-end">
+              <button type="button" className={btnUnduhCls} onClick={exportTabelTahun}>
+                <Download size={14} /> Unduh CSV
+              </button>
+            </div>
+            <div className="overflow-x-auto">
             <table className="min-w-full border-collapse text-sm">
               <thead>
                 <tr className="bg-laut-50">
@@ -231,11 +314,18 @@ export default function ResultsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 
         {tab === 'Ringkasan per Tahap' && (
-          <div className="overflow-x-auto">
+          <div>
+            <div className="mb-3 flex justify-end">
+              <button type="button" className={btnUnduhCls} onClick={exportRingkasanTahap}>
+                <Download size={14} /> Unduh CSV
+              </button>
+            </div>
+            <div className="overflow-x-auto">
             <table className="min-w-full border-collapse text-sm">
               <thead>
                 <tr className="bg-laut-50 text-xs uppercase tracking-wide text-laut-900">
@@ -280,6 +370,7 @@ export default function ResultsPage() {
                 ))}
               </tbody>
             </table>
+            </div>
             <p className="mt-3 text-[11px] text-slate-400">
               Total cicilan = anuitas × tenor. Angka dibulatkan untuk tampilan
               ({idFmt.format(1)} = Rp 1).
