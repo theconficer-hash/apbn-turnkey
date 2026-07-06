@@ -1,18 +1,8 @@
-// Utilitas unduh: tabel -> CSV (kompatibel Excel), grafik SVG (Recharts) -> PNG
+// Utilitas unduh: blob (Excel dari backend) & grafik SVG (Recharts) -> PNG
 
-// rows: array of arrays. Pakai ; sebagai pemisah agar Excel locale Indonesia
-// langsung membelah kolom dengan benar.
-export function downloadCSV(filename, header, rows) {
-  const esc = (v) => {
-    const s = String(v ?? '')
-    return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
-  }
-  const lines = [header, ...rows].map((r) => r.map(esc).join(';'))
-  // ﻿ = BOM agar Excel membaca UTF-8 dengan benar
-  const blob = new Blob(['﻿' + lines.join('\r\n')], {
-    type: 'text/csv;charset=utf-8',
-  })
-  triggerDownload(URL.createObjectURL(blob), filename)
+export function triggerBlobDownload(blobData, filename) {
+  const url = URL.createObjectURL(new Blob([blobData]))
+  triggerDownload(url, filename)
 }
 
 // container: elemen DOM yang berisi <svg> Recharts

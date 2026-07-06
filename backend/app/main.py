@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import simulate
+from app.routers import export, simulate
 
 app = FastAPI(title="APBN Turnkey Simulator")
 
@@ -13,6 +13,7 @@ app.add_middleware(
 )
 
 app.include_router(simulate.router, prefix="/api")
+app.include_router(export.router, prefix="/api")
 
 
 @app.get("/")

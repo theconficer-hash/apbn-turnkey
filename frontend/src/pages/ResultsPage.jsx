@@ -5,8 +5,9 @@ import {
 } from 'recharts'
 import { Download, ImageDown } from 'lucide-react'
 import useSimStore from '../store/useSimStore'
+import { downloadExcel } from '../api/client'
 import { formatRingkas, fmtPct } from '../utils/format'
-import { downloadCSV, downloadChartPNG } from '../utils/download'
+import { downloadChartPNG, triggerBlobDownload } from '../utils/download'
 
 const idFmt = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 })
 
@@ -46,6 +47,7 @@ export default function ResultsPage() {
   const setActivePage = useSimStore((s) => s.setActivePage)
 
   const [tab, setTab] = useState('Grafik Beban')
+  const [downloading, setDownloading] = useState(false)
   const chartTahapRef = useRef(null)
   const chartTotalRef = useRef(null)
 
@@ -89,38 +91,16 @@ export default function ResultsPage() {
 
   const triliun = (v) => (v / 1e12).toLocaleString('id-ID', { maximumFractionDigits: 2 })
 
-  // ---- Ekspor CSV ----
-  const bulat = (v) => Math.round(v ?? 0)
-
-  const exportTabelTahun = () =>
-    downloadCSV(
-      'apbn_turnkey_beban_per_tahun.csv',
-      ['Tahun', 'Total Anuitas (Rp)', 'Total OPEX (Rp)', 'Total Beban (Rp)'],
-      years.map((y) => [y, bulat(r.total_anuitas[y]), bulat(r.total_opex[y]), bulat(r.total_beban[y])])
-    )
-
-  const exportRingkasanTahap = () =>
-    downloadCSV(
-      'apbn_turnkey_ringkasan_per_tahap.csv',
-      ['Tahap', 'CAPEX (Rp)', 'Anuitas/thn (Rp)', 'OPEX/thn (Rp)', 'Beban/thn (Rp)',
-       'Total Cicilan (Rp)', 'Konstruksi Mulai', 'Konstruksi Selesai', 'Cicilan Mulai', 'Cicilan Selesai'],
-      r.per_tahap.map((t) => [
-        t.nama, bulat(t.capex), bulat(t.anuitas_tahunan), bulat(t.opex_tahunan),
-        bulat(t.total_beban_tahunan), bulat(t.total_cicilan),
-        t.mulai_konstruksi, t.selesai_konstruksi, t.cicilan_mulai, t.cicilan_selesai,
-      ])
-    )
-
-  const exportBebanPerTahap = () =>
-    downloadCSV(
-      'apbn_turnkey_beban_per_tahap_per_tahun.csv',
-      ['Tahun', ...r.per_tahap.map((t) => `${t.nama} (Rp)`), 'Total (Rp)'],
-      years.map((y) => [
-        y,
-        ...r.per_tahap.map((t) => bulat((t.anuitas_per_tahun[y] ?? 0) + (t.opex_per_tahun[y] ?? 0))),
-        bulat(r.total_beban[y]),
-      ])
-    )
+  // ---- Ekspor Excel (semua tabel dalam 1 workbook, dibuat backend) ----
+  const handleExcel = async () => {
+    setDownloading(true)
+    try {
+      const res = await downloadExcel(assumptions)
+      triggerBlobDownload(res.data, 'Simulasi_APBN_Turnkey.xlsx')
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   const btnUnduhCls =
     'flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 ' +
@@ -158,17 +138,12 @@ export default function ResultsPage() {
       <div className="mb-6 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={exportTabelTahun}
-          className="flex items-center gap-2 rounded-lg bg-mangrove-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-mangrove-700"
+          onClick={handleExcel}
+          disabled={downloading}
+          className="flex items-center gap-2 rounded-lg bg-mangrove-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-mangrove-700 disabled:bg-mangrove-600/60"
         >
-          <Download size={16} /> Unduh Tabel per Tahun (CSV)
-        </button>
-        <button
-          type="button"
-          onClick={exportRingkasanTahap}
-          className="flex items-center gap-2 rounded-lg bg-laut-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-laut-900"
-        >
-          <Download size={16} /> Unduh Ringkasan Tahap (CSV)
+          <Download size={16} />
+          {downloading ? 'Mengunduh…' : 'Download Excel (semua tabel)'}
         </button>
         <button
           type="button"
@@ -211,8 +186,8 @@ export default function ResultsPage() {
                     onClick={() => downloadChartPNG(chartTahapRef.current, 'grafik_beban_per_tahap.png')}>
                     <ImageDown size={14} /> PNG
                   </button>
-                  <button type="button" className={btnUnduhCls} onClick={exportBebanPerTahap}>
-                    <Download size={14} /> CSV
+                  <button type="button" className={btnUnduhCls} onClick={handleExcel} disabled={downloading}>
+                    <Download size={14} /> Excel
                   </button>
                 </div>
               </div>
@@ -247,8 +222,8 @@ export default function ResultsPage() {
                     onClick={() => downloadChartPNG(chartTotalRef.current, 'grafik_anuitas_vs_opex.png')}>
                     <ImageDown size={14} /> PNG
                   </button>
-                  <button type="button" className={btnUnduhCls} onClick={exportTabelTahun}>
-                    <Download size={14} /> CSV
+                  <button type="button" className={btnUnduhCls} onClick={handleExcel} disabled={downloading}>
+                    <Download size={14} /> Excel
                   </button>
                 </div>
               </div>
@@ -273,8 +248,8 @@ export default function ResultsPage() {
         {tab === 'Tabel per Tahun' && (
           <div>
             <div className="mb-3 flex justify-end">
-              <button type="button" className={btnUnduhCls} onClick={exportTabelTahun}>
-                <Download size={14} /> Unduh CSV
+              <button type="button" className={btnUnduhCls} onClick={handleExcel} disabled={downloading}>
+                <Download size={14} /> Unduh Excel
               </button>
             </div>
             <div className="overflow-x-auto">
@@ -321,8 +296,8 @@ export default function ResultsPage() {
         {tab === 'Ringkasan per Tahap' && (
           <div>
             <div className="mb-3 flex justify-end">
-              <button type="button" className={btnUnduhCls} onClick={exportRingkasanTahap}>
-                <Download size={14} /> Unduh CSV
+              <button type="button" className={btnUnduhCls} onClick={handleExcel} disabled={downloading}>
+                <Download size={14} /> Unduh Excel
               </button>
             </div>
             <div className="overflow-x-auto">
