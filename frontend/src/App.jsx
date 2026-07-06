@@ -1,10 +1,12 @@
-import { NotebookPen, BarChart3, Landmark } from 'lucide-react'
+import { BookOpen, NotebookPen, BarChart3, Landmark } from 'lucide-react'
 import useSimStore from './store/useSimStore'
 import heroImg from './assets/hero.jpg'
+import GuidePage from './pages/GuidePage'
 import AssumptionsPage from './pages/AssumptionsPage'
 import ResultsPage from './pages/ResultsPage'
 
 const NAV = [
+  { id: 'panduan', label: 'Kamus Istilah Asumsi', Icon: BookOpen },
   { id: 'input', label: 'Input Asumsi', Icon: NotebookPen },
   { id: 'results', label: 'Hasil Simulasi', Icon: BarChart3 },
 ]
@@ -83,6 +85,7 @@ function App() {
 
       {/* ===== KONTEN ===== */}
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
+        {activePage === 'panduan' && <GuidePage />}
         {activePage === 'input' && <AssumptionsPage />}
         {activePage === 'results' && <ResultsPage />}
       </main>

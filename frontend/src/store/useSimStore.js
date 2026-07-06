@@ -21,7 +21,7 @@ const useSimStore = create((set) => ({
   assumptions: { ...defaultAssumptions },
   results: null,
   isLoading: false,
-  activePage: 'input', // 'input' | 'results'
+  activePage: 'panduan', // 'panduan' | 'input' | 'results'
 
   setAssumptions: (patch) =>
     set((state) => ({ assumptions: { ...state.assumptions, ...patch } })),
