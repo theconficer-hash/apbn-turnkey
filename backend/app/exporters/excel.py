@@ -2,6 +2,7 @@
 import io
 
 from openpyxl import Workbook
+from openpyxl.chart import BarChart, LineChart, Reference
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -142,6 +143,85 @@ def build_excel(hasil: dict, asumsi: dict) -> bytes:
             for y in years
         ],
     )
+
+    # ── Sheet 5: Grafik (chart Excel native, data dalam Rp Triliun) ──
+    ws = wb.create_sheet("Grafik")
+    ws.append(["Data Grafik (Rp Triliun)"])
+    ws.cell(row=1, column=1).font = TITLE_FONT
+    ws.append([])
+
+    # Tabel data: Tahun | tahap1..N | Total Anuitas | Total OPEX | Total Beban
+    nama_tahap = [t["nama"] for t in per_tahap]
+    header = ["Tahun", *nama_tahap, "Total Anuitas", "Total OPEX", "Total Beban"]
+    ws.append(header)
+    hr = ws.max_row  # baris header data
+    for c in range(1, len(header) + 1):
+        cell = ws.cell(row=hr, column=c)
+        cell.fill = HEADER_FILL
+        cell.font = HEADER_FONT
+        cell.border = BORDER
+
+    T = 1e12
+    for y in years:
+        ws.append([
+            y,
+            *[round((t["anuitas_per_tahun"].get(y, 0) + t["opex_per_tahun"].get(y, 0)) / T, 4)
+              for t in per_tahap],
+            round(hasil["total_anuitas"].get(y, 0) / T, 4),
+            round(hasil["total_opex"].get(y, 0) / T, 4),
+            round(hasil["total_beban"].get(y, 0) / T, 4),
+        ])
+        for c in range(1, len(header) + 1):
+            cell = ws.cell(row=ws.max_row, column=c)
+            cell.border = BORDER
+            if c > 1:
+                cell.number_format = "0.00"
+
+    baris_awal = hr + 1
+    baris_akhir = ws.max_row
+    n_tahap = len(nama_tahap)
+    kolom_tahun = Reference(ws, min_col=1, min_row=baris_awal, max_row=baris_akhir)
+
+    # Grafik 1 — Beban per Tahap (stacked bar), warna selaras UI
+    bar = BarChart()
+    bar.type = "col"
+    bar.grouping = "stacked"
+    bar.overlap = 100
+    bar.title = "Beban per Tahap (Rp Triliun / tahun)"
+    bar.y_axis.title = "Rp Triliun"
+    bar.x_axis.title = "Tahun"
+    data = Reference(ws, min_col=2, max_col=1 + n_tahap,
+                     min_row=hr, max_row=baris_akhir)
+    bar.add_data(data, titles_from_data=True)
+    bar.set_categories(kolom_tahun)
+    warna_ui = ["1F5E8C", "1B7A5A", "B45309", "7C3AED", "0E7490", "BE123C"]
+    for i, s in enumerate(bar.series):
+        s.graphicalProperties.solidFill = warna_ui[i % len(warna_ui)]
+    bar.width = 30
+    bar.height = 12
+    ws.add_chart(bar, f"A{baris_akhir + 3}")
+
+    # Grafik 2 — Anuitas vs OPEX vs Total (line)
+    line = LineChart()
+    line.title = "Anuitas vs OPEX Total (Rp Triliun / tahun)"
+    line.y_axis.title = "Rp Triliun"
+    line.x_axis.title = "Tahun"
+    data = Reference(ws, min_col=2 + n_tahap, max_col=4 + n_tahap,
+                     min_row=hr, max_row=baris_akhir)
+    line.add_data(data, titles_from_data=True)
+    line.set_categories(kolom_tahun)
+    for s, warna in zip(line.series, ["1F5E8C", "1B7A5A", "DC2626"]):
+        s.graphicalProperties.line.solidFill = warna
+        s.graphicalProperties.line.width = 25000  # ~2pt (EMU)
+        s.smooth = False
+    line.width = 30
+    line.height = 12
+    ws.add_chart(line, f"A{baris_akhir + 28}")
+
+    ws.column_dimensions["A"].width = 10
+    for c in range(2, len(header) + 1):
+        ws.column_dimensions[get_column_letter(c)].width = 14
+    ws.freeze_panes = ws.cell(row=baris_awal, column=2)
 
     buf = io.BytesIO()
     wb.save(buf)
